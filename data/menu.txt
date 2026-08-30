@@ -1,0 +1,24 @@
+BrewBuddy Coffee Menu Summary:
+
+COFFEE:
+- Espresso: ₹140 | High caffeine, Hot, Vegan/Keto
+- Americano: ₹180 | High caffeine, Hot, Light crema
+- Cappuccino: ₹220 | Medium caffeine, Hot, Steamed milk foam (Dairy)
+- Caffè Latte: ₹240 | Medium caffeine, Hot, Smooth & creamy (Dairy)
+- Caffè Mocha: ₹260 | Medium caffeine, Hot, Dutch chocolate & whipped cream (Dairy)
+
+COLD COFFEE:
+- Iced Americano: ₹190 | High caffeine, Cold, Over ice
+- Iced Latte: ₹250 | Medium caffeine, Cold, Chilled milk & espresso (Dairy)
+- Cold Brew: ₹230 | High caffeine, Cold, 18-hour slow steep
+- Caramel Cold Coffee: ₹280 | Medium caffeine, Cold, Caramel drizzle (Dairy)
+- Vanilla Frappé: ₹290 | Low caffeine, Cold, Vanilla bean & whipped cream (Dairy)
+
+TEA:
+- Green Tea: ₹160 | Low caffeine, Hot, Organic whole leaf
+- Masala Chai: ₹170 | Medium caffeine, Hot, Indian spices & whole milk (Dairy)
+
+SNACKS:
+- Chocolate Muffin: ₹150 | No caffeine, Hot/Warm, Double chocolate (Gluten, Dairy, Eggs)
+- Veg Sandwich: ₹210 | No caffeine, Hot, Sourdough & mint pesto (Vegan, Gluten)
+- Croissant: ₹180 | No caffeine, Hot, Flaky French butter pastry (Gluten, Dairy)
