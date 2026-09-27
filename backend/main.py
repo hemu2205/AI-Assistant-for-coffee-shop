@@ -19,6 +19,11 @@ from backend.agent.agent import process_chat_message
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    try:
+        from backend.rag.pinecone_client import warm_vector_cache
+        warm_vector_cache()
+    except Exception:
+        pass
     yield
 
 app = FastAPI(title="BrewBuddy AI API", version="1.0.0", lifespan=lifespan)
