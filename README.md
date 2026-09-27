@@ -1,10 +1,30 @@
-# ☕ BrewBuddy AI — Personalized Coffee Shop Assistant
+# ☕ BrewBuddy AI — Enterprise Coffee Assistant
 
-> **"Your personal coffee expert."**
-> 
-> *Developed for Google Gen AI Academy APAC Cohort 3 Track 1*
+<div align="center">
 
-BrewBuddy AI is a production-grade, full-stack AI coffee assistant application powered by the **Google Agent Development Kit (`google-adk` v2.8.0)**, **Google Gemini API**, **Pinecone Vector Database (`coffee-menu` index)**, and an interactive **5-Screen Single Page Application (SPA)** built to match Google Stitch Experience Design.
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Google ADK](https://img.shields.io/badge/Google%20ADK-v2.8.0-4285F4.svg?logo=google&logoColor=white)](https://github.com/google/agent-development-kit)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-Flash-8E75B2.svg?logo=googlegemini&logoColor=white)](https://ai.google.dev/)
+[![Pinecone Vector DB](https://img.shields.io/badge/Pinecone-Vector%20RAG-000000.svg?logo=pinecone&logoColor=white)](https://www.pinecone.io/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**"Your personal, grounded AI coffee expert and barista."**
+
+*Engineered for Google Cloud Gen AI Academy APAC Cohort 3 — Track 1 (Customer-Facing AI Agents)*
+
+[Live Demo](http://localhost:8000) • [Architecture](#-system-architecture) • [Dual RAG Engine](#-dual-rag-architecture) • [API Reference](#-api-specification) • [Local Setup](#-quickstart-guide)
+
+</div>
+
+---
+
+## 📖 Executive Summary
+
+**BrewBuddy AI** is a production-grade, full-stack conversational coffee shop assistant. It bridges modern generative AI with deterministic retail business rules through **Google Agent Development Kit (`google-adk`)**, **Google Gemini**, and a **Dual-RAG Pipeline** combining **Pinecone Serverless Vector Search** for real-time menu exploration with a **Grounded Knowledge Base** for store policies, Wi-Fi credentials, BYO cup incentives, allergen warnings, and corporate catering.
+
+The application features a responsive **5-Screen Single Page Application (SPA)** crafted in accordance with **Google Stitch Experience Design**, providing embedded Generative UI product cards, live order management with 5% GST computation, and multi-turn persistent conversation.
 
 ---
 
@@ -12,30 +32,39 @@ BrewBuddy AI is a production-grade, full-stack AI coffee assistant application p
 
 ```mermaid
 graph TD
-    User([Customer Web Client]) -->|HTTP / SPA Navigation| Frontend[5-Screen Web UI - HTML/CSS/JS]
-    Frontend -->|REST API /api/chat| FastAPI[FastAPI Backend - main.py]
+    %% Clients
+    User([Customer Web Client]) -->|SPA Navigation & Chat| Frontend[5-Screen Web UI<br/>HTML5 / Tailwind CSS / Vanilla JS]
     
-    FastAPI --> ADKAgent[google.adk.Agent - BrewBuddy Barista]
+    %% API Gateway
+    Frontend -->|REST APIs| FastAPI[FastAPI Application Gateway<br/>backend/main.py]
     
-    subgraph Retrieval Pipeline
-        ADKAgent -->|Menu Queries| PineconeTool[tool_get_menu - tools.py]
-        PineconeTool -->|Embedding: gemini-embedding-001| GenAIEmbed[Google GenAI Embeddings]
-        PineconeTool -->|Vector Cosine Search: top_k=4| PineconeDB[(Pinecone Vector DB - coffee-menu)]
-        PineconeTool -->|In-Memory Warm Cache| LocalCache[Vector Cache - <1ms retrieval]
+    %% Agent Layer
+    FastAPI --> ADKAgent[Google ADK Agent Engine<br/>brewbuddy_adk_agent]
+    
+    %% Dual RAG Subsystem
+    subgraph Dual RAG Architecture
+        ADKAgent -->|Menu Queries| VectorTool[Pinecone Vector Tool<br/>tool_get_menu]
+        VectorTool -->|gemini-embedding-001<br/>768-dim Vectors| PineconeIndex[(Pinecone Serverless DB<br/>coffee-menu Index)]
+        VectorTool -->|Sub-millisecond| WarmCache[In-Memory Vector Cache<br/>Pre-warmed at Startup]
         
-        ADKAgent -->|Policy & FAQ Queries| FAQRetriever[KnowledgeBaseRetriever - retriever.py]
-        FAQRetriever -->|Store Info, FAQs, Allergens| StoreKB[(Store Knowledge Base - data/)]
+        ADKAgent -->|Store Policy & FAQ Queries| PolicyRetriever[KnowledgeBaseRetriever<br/>backend/rag/retriever.py]
+        PolicyRetriever -->|Grounded Text Retrieval| StoreData[(Local Store KB<br/>data/*.txt)]
     end
     
+    %% Storage Subsystem
     subgraph Persistence Layer
-        FastAPI --> SQLite[(SQLite DB - brewbuddy.db)]
+        FastAPI --> SQLite[(SQLite Relational DB<br/>brewbuddy.db)]
         SQLite --> OrderTable[order_items Table]
-        SQLite --> ChatTable[chat_history Table]
+        SQLite --> HistoryTable[chat_history Table]
     end
     
-    subgraph Generative AI & Grounding
-        ADKAgent -->|Multi-Model Grounded Prompt| Gemini[Google Gemini Flash API]
-        Gemini -->|Strictly Grounded Response| ADKAgent
+    %% Generative Model Layer
+    subgraph Generative AI Cascade
+        ADKAgent -->|Strictly Grounded Prompt| GenAICascade{Model Cascade}
+        GenAICascade -->|Primary| GeminiFlash[gemini-flash-latest]
+        GenAICascade -->|Fallback 1| Gemini35[gemini-3.5-flash]
+        GenAICascade -->|Fallback 2| Gemini25[gemini-2.5-flash]
+        GenAICascade -->|Offline RAG Fallback| DeterministicEngine[Deterministic Grounded Formatter]
     end
     
     ADKAgent -->|Formatted Markdown & UI Cards| Frontend
@@ -43,65 +72,97 @@ graph TD
 
 ---
 
-## 🌲 Pinecone-Backed Vector RAG Flow
+## 🚀 Key Features
 
-The menu retrieval pipeline replaces flat JSON/SQL lookups with true semantic vector search:
-
-1. **Source of Truth**: [`data/menu.json`](file:///c:/Projects/Coffee%20agent/data/menu.json) remains the canonical, editable menu dataset with 15 coffee, cold beverage, tea, and bakery items.
-2. **Dense Vector Embeddings**: Text representations (`f"{item['name']}: {item['description']}"`) are embedded into 768-dimensional vectors using `gemini-embedding-001` with `output_dimensionality=768`.
-3. **Pinecone Serverless Index (`coffee-menu`)**: Vectors are stored in a serverless AWS Pinecone index with cosine similarity. Item metadata (`name`, `category`, `description`, `price`, `tags`, `allergens`, `calories`, `caffeine`, `temperature`) is stored alongside vectors for instantaneous lookup.
-4. **Agent Retrieval Tool (`tool_get_menu`)**: The Barista Agent embeds incoming natural-language queries, searches `coffee-menu`, and filters by `SIMILARITY_SCORE_THRESHOLD >= 0.50`.
-5. **Strict Grounding Rules**:
-   - The agent only recommends items returned by `tool_get_menu()` for the current turn.
-   - If the query is vague (e.g. *"surprise me"*), the agent asks a clarifying question instead of guessing.
-   - Hard constraints (allergens, dairy-free, sugar-free, decaf) are strictly verified against returned `tags` and `allergens` fields.
-   - For items not on the menu (e.g. bubble tea, sushi, pizza), the agent responds with: *"Sorry, that's not available on our menu right now."*
+| Capability | Technical Implementation | Value to End User |
+| :--- | :--- | :--- |
+| **Strict Menu Grounding** | Pinecone Cosine Similarity ($\ge 0.50$) | Zero hallucinations; never recommends off-menu or phantom items |
+| **Dual RAG Engine** | Pinecone Vector Search + Structured Policy RAG | Seamless handling of drinks, allergen limits, Wi-Fi, BYO cups & refunds |
+| **Generative UI Cards** | Interactive Chat Bubbles with Live Cart Action | Rich cards with calories, caffeine level, allergen tags, and one-click add |
+| **Ultra-Low Latency** | Pre-Warmed Vector Cache + `@lru_cache` | Sub-millisecond vector retrieval with rapid streaming responses |
+| **Multi-Model Reliability** | 3-Tier Gemini Cascade + Offline Fallback | 100% uptime resilient to API quotas or transient cloud spikes |
+| **End-to-End Commerce** | SQLite Session Storage + 5% GST Engine | Real-time invoice calculation, order tracking, and receipt generation |
 
 ---
 
-## 📋 Store Knowledge Base & Policy RAG
+## 🌲 Dual RAG Architecture
 
-Store policies, customer FAQs, operational rules, and allergen safety are handled by a dedicated knowledge base pipeline:
+```
+                    ┌───────────────────────────┐
+                    │    Incoming User Query    │
+                    └─────────────┬─────────────┘
+                                  │
+                  Is query about menu or policies?
+                     /                         \
+           [Menu / Drink Query]          [Policy / FAQ Query]
+                    │                                   │
+      ┌─────────────▼─────────────┐       ┌─────────────▼─────────────┐
+      │   Pinecone Vector Search  │       │  Knowledge Base Retriever │
+      │ 768-dim Cosine Similarity │       │  Intent & Topic Synonyms  │
+      │ In-Memory Pre-Warmed Cache│       │ Store Info, FAQs, Hazards │
+      └─────────────┬─────────────┘       └─────────────┬─────────────┘
+                    │                                   │
+                    └─────────────┬─────────────────────┘
+                                  │
+                    ┌─────────────▼─────────────┐
+                    │    Grounded ADK Prompt    │
+                    │   Strict Negative Rules   │
+                    └─────────────┬─────────────┘
+                                  │
+                    ┌─────────────▼─────────────┐
+                    │  Google Gemini Generator  │
+                    │ gemini-flash-latest (0.2) │
+                    └───────────────────────────┘
+```
 
-- **Refund & Cancellation Policy**: Explains that prepared orders cannot be cancelled, and guarantees immediate counter replacement or a 100% refund credited within 24 hours.
-- **BYO Cup & Sustainability**: Details the instant **₹15 discount** on any espresso, coffee, or cold beverage for customers bringing their own clean reusable mug, plus 100% biodegradable packaging.
-- **Wi-Fi, Seating & Work Outlets**: Provides credentials (`BrewBuddy_Guest`, password: `brewbuddycoffee`), work tables with power outlets, and 2-hour peak seating limits.
-- **Pet & Dog-Friendly Policy**: Clarifies outdoor garden and patio seating welcoming pets, with complimentary fresh water bowls.
-- **Bulk & Corporate Catering**: Explains requirements (2 hours advance notice for >10 items) and the **10% discount** on catering orders exceeding ₹2,000.
-- **Allergens & Dairy Alternatives**: Covers Oat Milk (+₹30) and Almond Milk (+₹30), vegan options (Veg Sandwich on sourdough), and shared espresso bar equipment cross-contamination notices.
+### 1. Dynamic Menu Catalog RAG (Pinecone)
+- **Source of Truth**: [`data/menu.json`](file:///c:/Projects/Coffee%20agent/data/menu.json) holds the canonical catalog of 15 beverages, brewing parameters, dietary tags, and bakery snacks.
+- **Dense Embeddings**: `gemini-embedding-001` converts item representations into 768-dimensional vectors with cosine similarity matching.
+- **Serverless Index**: Managed serverless index `coffee-menu` (AWS `us-east-1`).
+- **Grounding Guardrails**:
+  - The model only suggests items returned by vector search for the active turn.
+  - Vague requests (*"surprise me"*, *"what's good?"*) trigger single clarifying questions instead of random recommendations.
+  - Dietary restrictions (vegan, dairy-free, keto, nut allergy) are validated against item metadata before returning.
+  - Off-menu items (bubble tea, matcha latte, pizza) return standard rejection: *"Sorry, that's not available on our menu right now."*
+
+### 2. Store Policy & Operational FAQ RAG
+- **Sources**: [`data/store_info.txt`](file:///c:/Projects/Coffee%20agent/data/store_info.txt), [`data/faq.txt`](file:///c:/Projects/Coffee%20agent/data/faq.txt), and [`data/allergens.txt`](file:///c:/Projects/Coffee%20agent/data/allergens.txt).
+- **Topic Intent Matching**: Dedicated semantic intent routing recognizes queries for:
+  - 🌿 **BYO Cup & Sustainability**: Instant **₹15 discount** on clean reusable mugs + 100% biodegradable packaging.
+  - 📶 **Wi-Fi & Work Seating**: Network `BrewBuddy_Guest`, password `brewbuddycoffee`, AC power outlets, and 2-hr peak seating policy.
+  - 🐾 **Pet Policy**: Outdoor garden and patio seating welcoming dogs with complimentary water bowls.
+  - 👥 **Bulk Catering**: 2-hour advance notice for orders $>10$ items; **10% discount** on catering orders over ₹2,000.
+  - 🥛 **Allergens & Dairy Alternatives**: Oat Milk (+₹30), Almond Milk (+₹30), 100% vegan Veg Sandwich on sourdough, and shared steam wand cross-contamination disclaimers.
+  - 📋 **Refund & Cancellation**: Explanation that prepared orders cannot be cancelled; immediate counter replacement or 100% refund credited within 24 hours.
 
 ---
 
-## ⚡ Latency & Reliability Engineering
+## ⚡ Performance & Latency Engineering
 
-- **In-Memory Warm Vector Cache**: Pre-loads Pinecone index vectors directly into memory on FastAPI startup lifespan (`lifespan()`), delivering sub-millisecond retrieval times without network roundtrips.
-- **Query Embedding Cache**: Employs `@lru_cache` for frequent search queries, eliminating repetitive embedding API calls.
-- **Optimized Generation**: Configured with `thinking_budget=0` and constrained output tokens for snappy conversational streaming.
-- **Resilient Multi-Model Fallback**: Automatically tries `gemini-flash-latest`, `gemini-3.5-flash`, and `gemini-2.5-flash`.
-- **Grounded Offline Fallback**: In the event of network interruptions or Gemini API quota limits (429/503), the engine gracefully falls back to structured, local knowledge base responses without ever failing or dropping user requests.
+To achieve enterprise-grade response times, BrewBuddy AI incorporates four optimization layers:
 
----
-
-## 🔄 How to Update the Menu & Re-Seed Pinecone
-
-[`data/menu.json`](file:///c:/Projects/Coffee%20agent/data/menu.json) is the sole source of truth. To add, edit, or remove items:
-
-1. Open and edit [`data/menu.json`](file:///c:/Projects/Coffee%20agent/data/menu.json).
-2. Run the idempotent seeding script:
-   ```powershell
-   python seed.py
+1. **In-Memory Warm Vector Cache**: During FastAPI startup (`lifespan()`), all 15 menu vectors are pre-fetched and cached in memory. Queries match in $<1\text{ ms}$ without redundant network roundtrips.
+2. **LRU Query Embedding Cache**: Identical customer queries bypass embedding generation using Python's `@lru_cache(maxsize=128)`.
+3. **Zero Thinking Budget & Constrained Output**: Configured with `thinking_budget=0` and `max_output_tokens=350` to eliminate generation overhead.
+4. **Resilient Model Cascade**:
+   ```python
+   candidate_models = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash"]
    ```
-   *The script automatically generates embeddings, upserts updated items in a single batch, invalidates local cache, and syncs vectors with Pinecone.*
+   If a model experiences transient quota constraints (HTTP 429) or high demand spikes (HTTP 503), the engine falls back down the cascade, finishing at a deterministic local formatter ensuring 100% availability.
 
 ---
 
-## 🌟 5-Screen Experience (Google Stitch Design)
+## 📱 5-Screen Experience (Google Stitch Design)
 
-- **🤖 AI Assistant Chat (`#page-assistant`)**: Conversational interface featuring embedded Generative UI product cards, live cart sidebar, and markdown formatting.
-- **☕ Explore Menu Grid (`#page-menu`)**: Full scrolling gallery for all 15 coffee and bakery items with category filters (`Coffee`, `Cold Coffee`, `Tea`, `Snacks`) and real-time search.
-- **🎛️ Personalization Studio (`#page-preferences`)**: Taste configurator for temperature (`Cold`, `Hot`), caffeine strength (`High`, `Medium`, `Low`), dietary preferences (`Vegan`, `Vegetarian`, `Keto`), and sweetness levels.
-- **🧾 Order Status & Invoice (`#page-orders`)**: Real-time order preparation tracking progress bar and itemized receipt breakdown with 5% GST tax calculations.
-- **❓ FAQ & Store Policies (`#page-faq`)**: Dedicated card hub for BYO Cup discounts, Wi-Fi credentials, refund policies, pet guidelines, catering, and allergens with instant "Ask AI Assistant" chips.
+Built to adhere to Google Stitch Design specifications:
+
+| Screen | DOM Element | Features |
+| :--- | :--- | :--- |
+| **🤖 AI Barista Assistant** | `#page-assistant` | Interactive chat bubble feed, Generative UI item cards with direct `+ Add to Order` buttons, live order drawer, and markdown rendering. |
+| **☕ Explore Menu Grid** | `#page-menu` | High-definition visual menu grid, categorized tabs (*All, Coffee, Cold Coffee, Tea, Bakery/Snacks*), and real-time text search. |
+| **🎛️ Personalization Studio** | `#page-preferences` | Customization matrix for Temperature (*Hot/Cold*), Sweetness (*None/Low/Med/High*), Caffeine (*None/Low/Med/High*), Milk Type (*Whole/Oat/Almond/Skim*), and Diet (*Vegan/Keto/Dairy-Free*). |
+| **🧾 Order Status & Invoice** | `#page-orders` | Live preparation tracker (*Brewing $\rightarrow$ Packaging $\rightarrow$ Ready*), itemized receipt with quantities, 5% GST tax calculation, and order clearing. |
+| **❓ FAQ & Store Policies** | `#page-faq` | Interactive card hub displaying store policies, Wi-Fi credentials, pet rules, and discounts, each equipped with an **"Ask AI Assistant"** prompt chip. |
 
 ---
 
@@ -111,82 +172,148 @@ Store policies, customer FAQs, operational rules, and allergen safety are handle
 Coffee agent/
 ├── backend/
 │   ├── agent/
-│   │   ├── agent.py              # google.adk.Agent, grounding loop & FAQ intents
-│   │   └── tools.py              # tool_get_menu (Pinecone RAG) & order tools
+│   │   ├── agent.py              # Google ADK agent definition, grounding loop & FAQ intents
+│   │   └── tools.py              # ADK tool definitions (Pinecone menu search, order management)
 │   ├── models/
-│   │   └── schemas.py            # Pydantic v2 schemas
+│   │   └── schemas.py            # Pydantic v2 schemas for requests, responses & orders
 │   ├── rag/
-│   │   ├── pinecone_client.py    # Pinecone singleton & warm vector cache
-│   │   └── retriever.py          # Store knowledge & policy retriever
+│   │   ├── pinecone_client.py    # Pinecone singleton, embedding generator & warm vector cache
+│   │   └── retriever.py          # Store knowledge & policy retriever with topic synonym expansion
 │   ├── services/
-│   │   ├── db.py                 # SQLite database manager & chat history
-│   │   ├── order_service.py      # Cart operations & 5% GST calculator
-│   │   └── recommendation.py     # Preference matching engine
-│   └── main.py                   # FastAPI server & static file host
+│   │   ├── db.py                 # SQLite database manager & persistent chat history
+│   │   ├── order_service.py      # Cart operations & 5% GST tax computation engine
+│   │   └── recommendation.py     # Deterministic customer preference matching engine
+│   └── main.py                   # FastAPI application, CORS middleware & static file mounting
 ├── data/
 │   ├── menu.json                 # Canonical menu dataset (Source of Truth)
-│   ├── store_info.txt            # Hours, location, Wi-Fi & policy guide
-│   ├── faq.txt                   # BYO Cup, catering & refund FAQs
-│   └── allergens.txt             # Allergen cross-contamination details
+│   ├── store_info.txt            # Store hours, address, Wi-Fi & workspace policies
+│   ├── faq.txt                   # BYO Cup, catering, and refund policy FAQs
+│   └── allergens.txt             # Ingredient & allergen cross-contamination guidelines
 ├── frontend/
-│   ├── index.html                # 5-Screen SPA Tailwind markup
-│   ├── app.js                    # SPA router, Marked.js & API client
-│   └── styles.css                # Custom coffee theme styling
+│   ├── index.html                # 5-Screen SPA Tailwind markup & modal components
+│   ├── app.js                    # SPA state router, Marked.js integration & API client
+│   └── styles.css                # Custom theme variables, scrollbars & animations
 ├── tests/
-│   └── test_backend.py           # Automated test suite
-├── seed.py                       # Pinecone index seeding & sync script
-├── requirements.txt              # Project dependencies
+│   └── test_backend.py           # Pytest automated test suite
+├── seed.py                       # Idempotent Pinecone vector index seeding script
+├── requirements.txt              # Production Python dependencies
 ├── .env.example                  # Environment variable template
-├── .gitignore                    # Git ignore file
-└── README.md                     # Documentation
+├── .gitignore                    # Version control ignore definitions
+└── README.md                     # Enterprise documentation
 ```
 
 ---
 
-## 🔑 Required Environment Variables
+## 🔌 API Specification
 
-Copy `.env.example` to `.env` and fill in your keys:
+### Chat & Agent
+- **`POST /api/chat`**: Primary conversational endpoint.
+  - **Request**: `{"message": "I need a sweet cold coffee", "session_id": "user123", "preferences": {...}}`
+  - **Response**: `{"response": "...", "recommended_products": [...], "order": {...}, "tool_called": "tool_get_menu"}`
+- **`GET /api/chat/history?session_id={id}`**: Retrieve persistent chat history.
+- **`DELETE /api/chat/history?session_id={id}`**: Clear conversational history for a session.
+
+### Menu & Recommendations
+- **`GET /api/menu`**: Retrieve complete menu list.
+- **`GET /api/menu/{product_id}`**: Retrieve specific product specification.
+- **`POST /api/recommend`**: Return filtered products matching explicit user preference model.
+
+### Order & Cart Management
+- **`GET /api/order?session_id={id}`**: Retrieve current order items, subtotal, 5% GST, and total.
+- **`POST /api/order?session_id={id}`**: Add item to cart `{"product_name": "Cappuccino", "quantity": 1}`.
+- **`DELETE /api/order?session_id={id}`**: Empty cart.
+
+### System
+- **`GET /api/health`**: Service health status and version ping.
+
+---
+
+## 🛠️ Quickstart Guide
+
+### 1. Prerequisites
+- **Python**: Version 3.11 or higher
+- **Google Cloud API Key**: With Gemini API enabled
+- **Pinecone API Key**: Free Serverless Tier account
+
+### 2. Environment Configuration
+Clone the repository and create your local environment file:
 
 ```bash
+git clone https://github.com/hemu2205/AI-Assistant-for-coffee-shop.git
+cd AI-Assistant-for-coffee-shop
 cp .env.example .env
 ```
 
-| Variable | Description |
-|---|---|
-| `GOOGLE_API_KEY` | Google Gemini API key (for Gemini Flash and `gemini-embedding-001`). |
-| `PINECONE_API_KEY` | Pinecone API key (for serverless vector index access). |
-| `PORT` | Application server port (default: `8000`). |
-| `HOST` | Host address (default: `0.0.0.0`). |
-| `SIMILARITY_SCORE_THRESHOLD` | *(Optional)* Minimum cosine similarity for vector matches (default: `0.50`). |
+Configure your `.env` file:
+```env
+GOOGLE_API_KEY=AIzaSy...
+PINECONE_API_KEY=pcsk_...
+PORT=8000
+HOST=0.0.0.0
+SIMILARITY_SCORE_THRESHOLD=0.50
+```
 
----
-
-## 💻 Local Execution Guide
-
-### 1. Setup Virtual Environment & Dependencies
+### 3. Install Dependencies
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 2. Seed Pinecone Index
+### 4. Seed the Pinecone Vector Database
+Populate the serverless Pinecone index (`coffee-menu`) with embeddings generated from [`data/menu.json`](file:///c:/Projects/Coffee%20agent/data/menu.json):
+
 ```powershell
 python seed.py
 ```
-
-### 3. Start Local Server
-```powershell
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+*Expected Output:*
+```text
+Loaded 15 items from data/menu.json
+Successfully seeded 15 menu items into Pinecone index 'coffee-menu'!
 ```
 
-Access the application in your browser:
-👉 **[http://localhost:8000](http://localhost:8000)**
+### 5. Launch Application
+```powershell
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Open your browser and navigate to:
+👉 **`http://localhost:8000`**
+
+---
+
+## 🧪 Automated Testing
+
+Execute the test suite to validate database operations, Pinecone vector querying, agent grounding, and order processing:
+
+```powershell
+pytest tests/ -v
+```
+
+---
+
+## ☁️ Production Deployment (Google Cloud Run)
+
+To deploy BrewBuddy AI as a containerized microservice on **Google Cloud Run**:
+
+```bash
+# 1. Build and submit container image via Google Cloud Build
+gcloud builds submit --tag gcr.io/[PROJECT_ID]/brewbuddy-ai
+
+# 2. Deploy to Cloud Run with environment variables
+gcloud run deploy brewbuddy-ai \
+    --image gcr.io/[PROJECT_ID]/brewbuddy-ai \
+    --platform managed \
+    --region us-central1 \
+    --allow-unauthenticated \
+    --set-env-vars GOOGLE_API_KEY="AIzaSy...",PINECONE_API_KEY="pcsk_..."
+```
 
 ---
 
 ## 📜 License & Acknowledgments
 
-- **License**: MIT License
-- **Track**: Google Gen AI Academy APAC Cohort 3 (Track 1)
-- **Design Reference**: Stitch Experience Design ID `3306724857720669864`
+- **License**: Released under the [MIT License](LICENSE).
+- **Academic Program**: Google Cloud Gen AI Academy APAC Cohort 3 (Track 1: Customer-Facing AI Agents).
+- **Design Inspiration**: Google Stitch Experience Design System (`Design ID: 3306724857720669864`).
+- **Core Frameworks**: [Google Agent Development Kit (`google-adk`)](https://github.com/google/agent-development-kit) • [Pinecone](https://www.pinecone.io/) • [FastAPI](https://fastapi.tiangolo.com/) • [Tailwind CSS](https://tailwindcss.com/).
